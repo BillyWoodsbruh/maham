@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Maham — A sleek, secure, and lightweight to-do list manager for your daily and academic workflows." />
+  <title>Maham · To-Do Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── AUTH SCREEN ───────────────────────────────────────────────────── -->
+  <section id="auth-screen" class="screen">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <span class="brand-icon">✦</span>
+        <h1 class="brand-name">Maham</h1>
+        <p class="brand-tagline">Your tasks, beautifully organized.</p>
+      </div>
+
+      <!-- Tab switcher -->
+      <div class="auth-tabs" role="tablist">
+        <button id="tab-login" class="tab-btn active" role="tab" aria-selected="true" onclick="switchTab('login')">Log In</button>
+        <button id="tab-register" class="tab-btn" role="tab" aria-selected="false" onclick="switchTab('register')">Sign Up</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form" class="auth-form" novalidate>
+        <div class="form-group">
+          <label for="login-email">Email</label>
+          <input id="login-email" type="email" placeholder="you@example.com" autocomplete="email" required />
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" required />
+        </div>
+        <div id="login-error" class="form-error hidden" role="alert"></div>
+        <button id="login-submit" type="submit" class="btn-primary">
+          <span class="btn-text">Log In</span>
+          <span class="btn-spinner hidden">⟳</span>
+        </button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="register-form" class="auth-form hidden" novalidate>
+        <div class="form-group">
+          <label for="reg-username">Username</label>
+          <input id="reg-username" type="text" placeholder="Your name" autocomplete="username" required />
+        </div>
+        <div class="form-group">
+          <label for="reg-email">Email</label>
+          <input id="reg-email" type="email" placeholder="you@example.com" autocomplete="email" required />
+        </div>
+        <div class="form-group">
+          <label for="reg-password">Password <span class="hint">(min 6 chars)</span></label>
+          <input id="reg-password" type="password" placeholder="••••••••" autocomplete="new-password" required />
+        </div>
+        <div id="register-error" class="form-error hidden" role="alert"></div>
+        <button id="register-submit" type="submit" class="btn-primary">
+          <span class="btn-text">Create Account</span>
+          <span class="btn-spinner hidden">⟳</span>
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ── DASHBOARD SCREEN ──────────────────────────────────────────────── -->
+  <section id="dashboard-screen" class="screen hidden">
+    <!-- Header -->
+    <header class="dash-header">
+      <div class="dash-brand">
+        <span class="brand-icon small">✦</span>
+        <span class="brand-name small">Maham</span>
+      </div>
+      <div class="dash-user">
+        <span id="dash-username" class="user-greeting"></span>
+        <button id="logout-btn" class="btn-ghost" onclick="logout()">Log Out</button>
+      </div>
+    </header>
+
+    <!-- Main content -->
+    <main class="dash-main">
+      <!-- Stats bar -->
+      <div class="stats-bar">
+        <div class="stat-pill">
+          <span id="stat-total" class="stat-num">0</span>
+          <span class="stat-label">Total</span>
+        </div>
+        <div class="stat-pill accent">
+          <span id="stat-done" class="stat-num">0</span>
+          <span class="stat-label">Done</span>
+        </div>
+        <div class="stat-pill">
+          <span id="stat-remaining" class="stat-num">0</span>
+          <span class="stat-label">Remaining</span>
+        </div>
+      </div>
+
+      <!-- Add task form -->
+      <form id="add-task-form" class="add-task-form" novalidate>
+        <input
+          id="new-task-input"
+          type="text"
+          class="task-input"
+          placeholder="Add a new task… e.g. Solve Discrete Math 151"
+          maxlength="200"
+          required
+        />
+        <button id="add-task-btn" type="submit" class="btn-add" aria-label="Add task">＋</button>
+      </form>
+      <div id="add-task-error" class="form-error hidden" role="alert"></div>
+
+      <!-- Task list -->
+      <div id="task-list" class="task-list" role="list">
+        <!-- Tasks rendered here by app.js -->
+      </div>
+
+      <!-- Empty state -->
+      <div id="empty-state" class="empty-state hidden">
+        <div class="empty-icon">📋</div>
+        <p>No tasks yet. Add one above!</p>
+      </div>
+    </main>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>

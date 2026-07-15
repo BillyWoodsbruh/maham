@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+
+# Environment secrets
+.env
+backend/.env
+
+# CLI session token
+.cli-session
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
