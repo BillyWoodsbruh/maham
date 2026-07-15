@@ -35,7 +35,7 @@ Maham is a personal task manager web app designed to be **simple, fast, and secu
 - 🔒 **Account Lockout** — 5 consecutive failed logins trigger a 15-minute lockout
 - 🪖 **Security Headers** — `helmet` sets CSP, HSTS, X-Frame-Options, X-Content-Type-Options, and more
 - 🌐 **CORS Restriction** — Only the configured `ALLOWED_ORIGIN` may call the API
-- 🧪 **Test-Driven Development** — Jest + Supertest suite with 3 core API tests
+- 🧪 **Test-Driven Development** — Jest + Supertest suite covering core API behavior
 - 🎨 **Dark-Mode UI** — Electric purple/cyan palette, glassmorphism, micro-animations
 
 ---
@@ -73,6 +73,7 @@ daicotestlab2/
 │   ├── app.js                    # Express app (helmet, CORS, cookies, routes)
 │   ├── server.js                 # HTTP server entry point
 │   ├── tasks.test.js             # Jest + Supertest TDD suite
+│   ├── TDD.test.js               # Jest + Supertest TDD suite (duplicate coverage)
 │   ├── .env                      # Local secrets (gitignored)
 │   ├── .env.example              # Safe env template
 │   └── package.json
@@ -198,14 +199,11 @@ npm test
 
 Expected output:
 ```
+PASS ./TDD.test.js
 PASS ./tasks.test.js
-  Task API - Core Functionality Tests
-    POST /api/tasks
-      ✓ should create a new task successfully when authenticated
-      ✓ should return 401 Unauthorized if no authentication token is provided
-      ✓ should return 400 Bad Request if the task title is missing
 
-Tests: 3 passed, 3 total
+Test Suites: 2 passed, 2 total
+Tests:       6 passed, 6 total
 ```
 
 Tests use an **in-memory database** (isolated per run, never touches `todo.db`).
