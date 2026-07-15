@@ -41,6 +41,8 @@ async function initDb() {
       username TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
+      failed_attempts INTEGER NOT NULL DEFAULT 0,
+      locked_until DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -54,7 +56,26 @@ async function initDb() {
     );
   `);
 
+  migrateLockoutColumns();
+
   return db;
+}
+
+/**
+ * Adds the account-lockout columns to a `users` table that predates them.
+ * `CREATE TABLE IF NOT EXISTS` above is a no-op on an existing table, so
+ * databases created before v1.2.0 need these columns backfilled explicitly.
+ */
+function migrateLockoutColumns() {
+  const columns = db.exec('PRAGMA table_info(users)');
+  const names = columns.length ? columns[0].values.map((row) => row[1]) : [];
+
+  if (!names.includes('failed_attempts')) {
+    db.run('ALTER TABLE users ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!names.includes('locked_until')) {
+    db.run('ALTER TABLE users ADD COLUMN locked_until DATETIME');
+  }
 }
 
 /**

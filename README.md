@@ -22,16 +22,19 @@
 
 ## Overview
 
-Maham is a personal task manager web app designed to be **simple, fast, and secure**. Users can register an account, log in, and manage their to-do list from a clean dark-mode dashboard. All data is stored in a local SQLite database. Authentication is handled via JWT — issued on login/register and sent as a `Bearer` token on the `Authorization` header for subsequent requests.
+Maham is a personal task manager web app designed to be **simple, fast, and secure**. Users can register an account, log in, and manage their to-do list from a clean dark-mode dashboard. All data is stored in a local SQLite database. Authentication is handled via JWT stored in an `httpOnly` + `SameSite=Strict` cookie — the token is never accessible to JavaScript, protecting against XSS-based token theft.
 
 ---
 
 ## Features
 
 - 🔐 **Secure Authentication** — Register & log in with bcrypt-hashed passwords (12 rounds) and JWT sessions
-- 🔑 **Bearer Token Auth** — JWT is returned on login/register and stored in `localStorage`, sent via the `Authorization: Bearer` header
+- 🍪 **httpOnly Cookie Auth** — Tokens stored in `httpOnly + SameSite=Strict` cookies, never in `localStorage`
 - ✅ **Full Task CRUD** — Create, read, update (title + completion), and delete tasks
-- 🌐 **CORS Enabled** — `cors` middleware allows cross-origin requests to the API
+- 🛡️ **Rate Limiting** — Max 10 auth requests per 15-minute window (brute-force protection)
+- 🔒 **Account Lockout** — 5 consecutive failed logins trigger a 15-minute lockout
+- 🪖 **Security Headers** — `helmet` sets CSP, HSTS, X-Frame-Options, X-Content-Type-Options, and more
+- 🌐 **CORS Restriction** — Only the configured `ALLOWED_ORIGIN` may call the API
 - 🧪 **Test-Driven Development** — Jest + Supertest suite with 3 core API tests
 - 🎨 **Dark-Mode UI** — Electric purple/cyan palette, glassmorphism, micro-animations
 
@@ -45,7 +48,7 @@ Maham is a personal task manager web app designed to be **simple, fast, and secu
 | **Framework** | Express.js |
 | **Database** | sql.js (pure-JS SQLite — no native build tools needed) |
 | **Auth** | bcryptjs (password hashing) + jsonwebtoken (JWT) |
-| **Security** | express-validator (input validation), cors |
+| **Security** | helmet, express-rate-limit, cookie-parser, express-validator, cors |
 | **Frontend** | Vanilla HTML / CSS / JavaScript (no framework) |
 | **Testing** | Jest + Supertest |
 | **Font** | Outfit (Google Fonts) |
@@ -60,14 +63,14 @@ daicotestlab2/
 │   ├── config/
 │   │   └── db.js                 # sql.js DB initialization + migrations
 │   ├── middleware/
-│   │   └── authMiddleware.js     # JWT verification (Bearer token)
+│   │   └── authMiddleware.js     # JWT verification (cookie + Bearer fallback)
 │   ├── models/
-│   │   ├── User.js               # User CRUD
+│   │   ├── User.js               # User CRUD + account lockout helpers
 │   │   └── Task.js               # Task CRUD (owner-scoped)
 │   ├── routes/
-│   │   ├── auth.js               # POST /register, /login
+│   │   ├── auth.js               # POST /register, /login, /logout, GET /me
 │   │   └── tasks.js              # GET/POST/PUT/DELETE /api/tasks
-│   ├── app.js                    # Express app (CORS, routes)
+│   ├── app.js                    # Express app (helmet, CORS, cookies, routes)
 │   ├── server.js                 # HTTP server entry point
 │   ├── tasks.test.js             # Jest + Supertest TDD suite
 │   ├── .env                      # Local secrets (gitignored)
@@ -76,9 +79,10 @@ daicotestlab2/
 ├── frontend/
 │   ├── index.html                # SPA shell (auth + dashboard screens)
 │   ├── style.css                 # Dark-mode design system
-│   └── app.js                    # Auth flow, task CRUD, localStorage-based session
+│   └── app.js                    # Auth flow, task CRUD, cookie-based session
 ├── AGENTS.md                     # AI agent security & architecture rules
 ├── CHANGELOG.md                  # Version history
+├── SECURITY.md                   # Vulnerability disclosure history
 ├── PRD.md                        # Product Requirements Document
 └── README.md                     # This file
 ```
@@ -143,6 +147,7 @@ Copy `backend/.env.example` to `backend/.env` and fill in:
 | `PORT` | `3000` | Port the server listens on |
 | `JWT_SECRET` | *(required)* | Long random string for JWT signing — **change this!** |
 | `NODE_ENV` | `development` | Set to `production` for production deployments |
+| `ALLOWED_ORIGIN` | `http://localhost:3000` | CORS allowed origin |
 
 > ⚠️ Never commit your `.env` file. It is already in `.gitignore`.
 
@@ -150,14 +155,16 @@ Copy `backend/.env.example` to `backend/.env` and fill in:
 
 ## API Reference
 
-All task endpoints require authentication via an `Authorization: Bearer <token>` header.
+All task endpoints require authentication (httpOnly cookie set on login/register, or an `Authorization: Bearer <token>` header for API clients/testing).
 
 ### Auth
 
 | Method | Endpoint | Body | Description |
 |---|---|---|---|
-| `POST` | `/api/auth/register` | `{ username, email, password }` | Create account, returns a JWT |
-| `POST` | `/api/auth/login` | `{ email, password }` | Log in, returns a JWT |
+| `POST` | `/api/auth/register` | `{ username, email, password }` | Create account, sets auth cookie |
+| `POST` | `/api/auth/login` | `{ email, password }` | Log in, sets auth cookie |
+| `POST` | `/api/auth/logout` | — | Clears the auth cookie |
+| `GET` | `/api/auth/me` | — | Returns the current user, if authenticated |
 
 ### Tasks
 
@@ -177,6 +184,7 @@ All task endpoints require authentication via an `Authorization: Bearer <token>`
 | `400` | Validation error |
 | `401` | Unauthorized (no/invalid token) |
 | `404` | Resource not found |
+| `429` | Too many requests / account locked |
 | `500` | Internal server error |
 
 ---
@@ -206,23 +214,25 @@ Tests use an **in-memory database** (isolated per run, never touches `todo.db`).
 
 ## Security
 
+See [SECURITY.md](./SECURITY.md) for the full vulnerability disclosure history — what was found, how it was fixed, and how each fix was verified.
+
 ### Summary of controls
 
 | Control | Implementation |
 |---|---|
 | SQL Injection | Parameterized queries (`stmt.bind()`) on all DB calls |
 | XSS (DOM) | All user content rendered via `.textContent` — never `innerHTML` |
+| XSS (Token theft) | JWT in `httpOnly` cookie — JavaScript cannot read it |
+| CSRF | `SameSite=Strict` cookie + restricted CORS origin |
+| Security Headers | `helmet` — CSP, HSTS, X-Frame-Options, X-Content-Type-Options, etc. |
+| Brute-force | Rate limiting (10 req/15min) + per-account lockout (5 attempts → 15min) |
+| Account enumeration | Generic error messages on both login and registration |
 | Password storage | `bcryptjs` with 12 rounds |
 | Secrets | All via `.env` — never hardcoded, never committed |
 | Data isolation | All task queries scoped by `user_id` — no IDOR vulnerabilities |
 | Error responses | Generic messages to client — no stack traces or schema info exposed |
 
-### Known limitations (not yet implemented)
-
-- **Token storage**: the JWT is returned in the JSON response and stored in `localStorage` on the client, not in an `httpOnly` cookie — this means it is readable by JavaScript and vulnerable to theft via XSS if a script-injection bug were ever introduced.
-- **No rate limiting**: there is no request throttling on `/api/auth/*`, so brute-force login attempts are not mitigated.
-- **No account lockout**: repeated failed login attempts do not lock an account.
-- **No security headers middleware**: `helmet` (or equivalent) is not installed, so headers like CSP, HSTS, and X-Frame-Options are not set.
+Known accepted tradeoff: JWTs are valid for 1 day with no server-side revocation list, so a token exfiltrated before logout remains usable until it expires. See [SECURITY.md → VULN-007](./SECURITY.md#vuln-007) for the rationale.
 
 ---
 
@@ -232,49 +242,41 @@ This section documents all bugs discovered during development, their root causes
 
 ---
 
-### BUG-001 — Registration crashed with `Cannot read properties of undefined (reading 'id')`
+### BUG-001 — Registration and task creation crashed with `Cannot read properties of undefined (reading 'id')`
 
 | Field | Detail |
 |---|---|
 | **Severity** | Critical |
-| **Affected version** | v1.0.0 |
-| **Fixed in** | v1.1.1 |
-| **Affected file** | `backend/models/User.js` |
+| **Affected version** | v1.0.0 – v1.1.1 |
+| **Fixed in** | v1.2.0 |
+| **Affected files** | `backend/models/User.js`, `backend/models/Task.js` |
 
-**Symptom:** Attempting to register a new account returned *"Registration failed. Please check your details."* The server log showed:
+**Symptom:** Running the app against the real on-disk database (i.e. outside of Jest, where `NODE_ENV=test`) caused registration and task creation to fail with a `500` error. The server log showed:
 ```
 Register error: Cannot read properties of undefined (reading 'id')
 ```
+This wasn't caught earlier because the Jest suite runs against an in-memory database where `saveDb()` is a no-op — the bug only appeared in real (non-test) usage.
 
-**Root Cause:** The `createUser` function used a two-step pattern:
-1. `db.run(INSERT ...)` — insert the user
-2. `saveDb()` — export DB to disk via `db.export()`
-3. `queryOne('SELECT last_insert_rowid()')` — get the new row's ID
-
-The problem: `saveDb()` calls `db.export()` on the sql.js database object. This operation internally interacts with SQLite's virtual machine in a way that **resets** the `last_insert_rowid()` value, and may also **invalidate prepared statements** (which `queryOne` relies on via `stmt.bind()`). As a result, `createUser` received `null` as the ID, `findById(null)` returned `undefined`, and the route crashed trying to read `.id` from `undefined`.
-
-**Fix:** Rewrote `createUser` to:
-1. Run the INSERT
-2. Immediately read the rowid using `db.exec('SELECT last_insert_rowid()')` — before `saveDb()`
-3. Call `saveDb()`
-4. Look up the new user by rowid using `db.exec()` (not a prepared statement) to avoid any post-export invalidation
-
+**Root Cause:** The shared `execute()` helper in both models ran the write, then called `saveDb()` (which calls sql.js's `db.export()`), and only *after that* read `last_insert_rowid()`:
 ```js
-// Before (broken)
-function createUser(username, email, passwordHash) {
-  const id = execute('INSERT INTO users ...', [...]);
-  return findById(id); // id was null because saveDb() reset last_insert_rowid
-}
-
-// After (fixed)
-function createUser(username, email, passwordHash) {
+function execute(sql, params = []) {
   const db = getDb();
-  db.run('INSERT INTO users ...', [...]);
-  const rowidRes = db.exec('SELECT last_insert_rowid()'); // read BEFORE saveDb
-  const rowid = rowidRes[0]?.values?.[0]?.[0];
+  db.run(sql, params);
+  saveDb();                                              // exports/resets the connection
+  const result = queryOne('SELECT last_insert_rowid() as id'); // now returns null
+  return result ? result.id : null;
+}
+```
+`db.export()` resets rowid tracking on the sql.js connection, so the ID read afterward was always `null`, and the calling code (`findById(null)`) returned `undefined`.
+
+**Fix:** Reordered both `execute()` implementations to read the rowid *before* calling `saveDb()`:
+```js
+function execute(sql, params = []) {
+  const db = getDb();
+  db.run(sql, params);
+  const result = queryOne('SELECT last_insert_rowid() as id'); // read BEFORE saveDb()
   saveDb();
-  const res = db.exec(`SELECT id, username, email, created_at FROM users WHERE id = ${rowid}`);
-  return Object.fromEntries(res[0].columns.map((col, i) => [col, res[0].values[0][i]]));
+  return result ? result.id : null;
 }
 ```
 
@@ -325,7 +327,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for full version history.
 
 | Version | Date | Summary |
 |---|---|---|
-| `v1.1.1` | 2026-07-15 | Fix registration crash (BUG-001) |
+| `v1.2.0` | 2026-07-15 | Security hardening: httpOnly cookies, rate limiting, account lockout, helmet, CORS restriction, stronger validation (see [SECURITY.md](./SECURITY.md)); fixed registration/task-creation crash (BUG-001) |
 | `v1.0.0` | 2026-07-15 | Initial release: full-stack app, auth, task CRUD, dark-mode UI, TDD suite |
 
 ---

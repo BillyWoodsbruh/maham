@@ -5,6 +5,30 @@ Format: `[version] — date — description`
 
 ---
 
+## [1.2.0] — 2026-07-15 — Security Hardening
+
+Full details, verification steps, and rationale for each fix are in [SECURITY.md](./SECURITY.md).
+
+### Added
+- `helmet` — sets CSP, HSTS, X-Frame-Options, X-Content-Type-Options, and other security headers
+- `express-rate-limit` — caps `/api/auth/register` and `/api/auth/login` to 10 requests / 15 min per IP
+- `cookie-parser` + httpOnly cookie auth — the JWT is now set as an `httpOnly` + `SameSite=Strict` cookie instead of being stored in `localStorage`
+- Per-account lockout — 5 consecutive failed logins lock the account for 15 minutes (`failed_attempts` / `locked_until` columns on `users`, with a migration for existing databases)
+- `GET /api/auth/me` and `POST /api/auth/logout` endpoints
+- Server-side max-length validation on task titles (200 chars) and usernames (2–50 chars, restricted character set)
+- Stronger password policy: minimum 8 characters, must contain at least one digit
+
+### Changed
+- CORS restricted to `ALLOWED_ORIGIN` (from `.env`) instead of allowing any origin; `credentials: true` enabled for the auth cookie
+- JWT lifetime shortened from 7 days to 1 day
+- Registration with a duplicate email now returns a generic error instead of confirming the account exists (prevents enumeration)
+- `frontend/index.html` / `frontend/app.js` — removed inline `onclick` handlers (required by the new CSP) in favor of `addEventListener`; removed all `localStorage` token usage
+
+### Fixed
+- **BUG-001** — Registration and task creation crashed with `Cannot read properties of undefined (reading 'id')` when run against the real on-disk database. `saveDb()` (via sql.js's `db.export()`) was resetting `last_insert_rowid()` before it was read. Fixed by reading the rowid before calling `saveDb()` in both `models/User.js` and `models/Task.js`.
+
+---
+
 ## [1.0.0] — 2026-07-15 — Initial Release
 
 ### Added

@@ -18,11 +18,13 @@ function queryOne(sql, params = []) {
   return queryAll(sql, params)[0];
 }
 
+// IMPORTANT: last_insert_rowid() must be read BEFORE saveDb() — saveDb() calls
+// db.export(), which resets rowid tracking on the sql.js connection.
 function execute(sql, params = []) {
   const db = getDb();
   db.run(sql, params);
-  saveDb();
   const result = queryOne('SELECT last_insert_rowid() as id');
+  saveDb();
   return result ? result.id : null;
 }
 

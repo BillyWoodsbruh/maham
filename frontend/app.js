@@ -6,14 +6,11 @@
 const API = '';  // same-origin; Express serves both API and static files
 
 // ── Utility helpers ──────────────────────────────────────────────────────────
-
-function getToken() {
-  return localStorage.getItem('maham_token');
-}
-
-function setToken(token) {
-  localStorage.setItem('maham_token', token);
-}
+//
+// The auth token itself lives only in an httpOnly cookie set by the server —
+// it is never stored in localStorage/sessionStorage, so it can't be read or
+// exfiltrated by JavaScript (including via XSS). Only non-sensitive display
+// info (username) is cached client-side for the dashboard greeting.
 
 function setUser(user) {
   localStorage.setItem('maham_user', JSON.stringify(user));
@@ -25,16 +22,17 @@ function getUser() {
 }
 
 function clearSession() {
-  localStorage.removeItem('maham_token');
   localStorage.removeItem('maham_user');
 }
 
 async function apiFetch(path, options = {}) {
-  const token = getToken();
   const headers = { 'Content-Type': 'application/json', ...options.headers };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${API}${path}`, { ...options, headers });
+  const res = await fetch(`${API}${path}`, {
+    ...options,
+    headers,
+    credentials: 'include', // send/receive the httpOnly session cookie
+  });
   const data = await res.json().catch(() => ({}));
   return { ok: res.ok, status: res.status, data };
 }
@@ -100,7 +98,6 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     return;
   }
 
-  setToken(data.token);
   setUser(data.user);
   enterDashboard();
 });
@@ -126,12 +123,12 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     return;
   }
 
-  setToken(data.token);
   setUser(data.user);
   enterDashboard();
 });
 
-function logout() {
+async function logout() {
+  await apiFetch('/api/auth/logout', { method: 'POST' });
   clearSession();
   showScreen('auth');
   switchTab('login');
@@ -154,9 +151,9 @@ async function enterDashboard() {
 let tasks = [];
 
 async function loadTasks() {
-  const { ok, data } = await apiFetch('/api/tasks');
+  const { ok, status, data } = await apiFetch('/api/tasks');
   if (!ok) {
-    if (data.status === 401) { logout(); return; }
+    if (status === 401) { logout(); return; }
     return;
   }
   tasks = data;
@@ -353,11 +350,21 @@ function startEdit(task, itemEl, titleEl, actionsEl) {
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
 
-(function init() {
-  const token = getToken();
-  if (token) {
+(async function init() {
+  // Wired here (instead of inline onclick="...") so the Content-Security-Policy
+  // can keep script-src locked to 'self' with no 'unsafe-inline'.
+  document.getElementById('tab-login').addEventListener('click', () => switchTab('login'));
+  document.getElementById('tab-register').addEventListener('click', () => switchTab('register'));
+  document.getElementById('logout-btn').addEventListener('click', () => logout());
+
+  // The JWT lives in an httpOnly cookie, invisible to JS, so we ask the
+  // server whether we have a valid session rather than checking localStorage.
+  const { ok, data } = await apiFetch('/api/auth/me');
+  if (ok) {
+    setUser(data.user);
     enterDashboard();
   } else {
+    clearSession();
     showScreen('auth');
   }
 })();

@@ -27,13 +27,14 @@ function queryOne(sql, params = []) {
 
 /**
  * Executes a write statement (INSERT/UPDATE/DELETE) and returns last insert rowid.
+ * IMPORTANT: last_insert_rowid() must be read BEFORE saveDb() — saveDb() calls
+ * db.export(), which resets rowid tracking on the sql.js connection.
  */
 function execute(sql, params = []) {
   const db = getDb();
   db.run(sql, params);
-  saveDb();
-  // Return last insert rowid
   const result = queryOne('SELECT last_insert_rowid() as id');
+  saveDb();
   return result ? result.id : null;
 }
 
@@ -67,4 +68,54 @@ function findById(id) {
   );
 }
 
-module.exports = { createUser, findByEmail, findById };
+// ── Account lockout helpers (brute-force protection) ─────────────────────────
+
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * Returns true if the user's account is currently locked out.
+ */
+function isLocked(user) {
+  return !!user.locked_until && new Date(user.locked_until).getTime() > Date.now();
+}
+
+/**
+ * Records a failed login attempt. Locks the account for LOCKOUT_DURATION_MS
+ * once MAX_FAILED_ATTEMPTS consecutive failures have been reached.
+ */
+function recordFailedAttempt(id) {
+  const user = queryOne('SELECT failed_attempts FROM users WHERE id = ?', [id]);
+  if (!user) return;
+
+  const attempts = user.failed_attempts + 1;
+  const lockedUntil = attempts >= MAX_FAILED_ATTEMPTS
+    ? new Date(Date.now() + LOCKOUT_DURATION_MS).toISOString()
+    : null;
+
+  execute(
+    'UPDATE users SET failed_attempts = ?, locked_until = ? WHERE id = ?',
+    [attempts, lockedUntil, id]
+  );
+}
+
+/**
+ * Clears failed-attempt count and lockout on a successful login.
+ */
+function resetFailedAttempts(id) {
+  execute(
+    'UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?',
+    [id]
+  );
+}
+
+module.exports = {
+  createUser,
+  findByEmail,
+  findById,
+  isLocked,
+  recordFailedAttempt,
+  resetFailedAttempts,
+  MAX_FAILED_ATTEMPTS,
+  LOCKOUT_DURATION_MS,
+};

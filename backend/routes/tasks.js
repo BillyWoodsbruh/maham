@@ -29,7 +29,14 @@ router.get('/', (req, res) => {
  */
 router.post(
   '/',
-  [body('title').trim().notEmpty().withMessage('Task title is required')],
+  [
+    body('title')
+      .trim()
+      .notEmpty()
+      .withMessage('Task title is required')
+      .isLength({ max: 200 })
+      .withMessage('Task title cannot exceed 200 characters'),
+  ],
   (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -54,7 +61,13 @@ router.put(
   '/:id',
   [
     param('id').isInt({ min: 1 }).withMessage('Invalid task ID'),
-    body('title').optional().trim().notEmpty().withMessage('Title cannot be empty'),
+    body('title')
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage('Title cannot be empty')
+      .isLength({ max: 200 })
+      .withMessage('Task title cannot exceed 200 characters'),
     body('completed').optional().isBoolean().withMessage('Completed must be a boolean'),
   ],
   (req, res) => {
