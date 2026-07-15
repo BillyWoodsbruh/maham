@@ -22,19 +22,16 @@
 
 ## Overview
 
-Maham is a personal task manager web app designed to be **simple, fast, and secure**. Users can register an account, log in, and manage their to-do list from a clean dark-mode dashboard. All data is stored in a local SQLite database. Authentication is handled via JWT stored in `httpOnly` cookies — meaning the token is never accessible to JavaScript, protecting against XSS-based token theft.
+Maham is a personal task manager web app designed to be **simple, fast, and secure**. Users can register an account, log in, and manage their to-do list from a clean dark-mode dashboard. All data is stored in a local SQLite database. Authentication is handled via JWT — issued on login/register and sent as a `Bearer` token on the `Authorization` header for subsequent requests.
 
 ---
 
 ## Features
 
 - 🔐 **Secure Authentication** — Register & log in with bcrypt-hashed passwords (12 rounds) and JWT sessions
-- 🍪 **httpOnly Cookie Auth** — Tokens stored in `httpOnly + SameSite=Strict` cookies, not localStorage
+- 🔑 **Bearer Token Auth** — JWT is returned on login/register and stored in `localStorage`, sent via the `Authorization: Bearer` header
 - ✅ **Full Task CRUD** — Create, read, update (title + completion), and delete tasks
-- 🛡️ **Rate Limiting** — Max 10 auth requests per 15-minute window (brute-force protection)
-- 🔒 **Account Lockout** — 5 consecutive failed logins trigger a 15-minute lockout
-- 🪖 **Security Headers** — `helmet` sets CSP, HSTS, X-Frame-Options, X-Content-Type-Options, and more
-- 🌐 **CORS Restriction** — Only configured origin can make API requests
+- 🌐 **CORS Enabled** — `cors` middleware allows cross-origin requests to the API
 - 🧪 **Test-Driven Development** — Jest + Supertest suite with 3 core API tests
 - 🎨 **Dark-Mode UI** — Electric purple/cyan palette, glassmorphism, micro-animations
 
@@ -48,7 +45,7 @@ Maham is a personal task manager web app designed to be **simple, fast, and secu
 | **Framework** | Express.js |
 | **Database** | sql.js (pure-JS SQLite — no native build tools needed) |
 | **Auth** | bcryptjs (password hashing) + jsonwebtoken (JWT) |
-| **Security** | helmet, express-rate-limit, cookie-parser, express-validator |
+| **Security** | express-validator (input validation), cors |
 | **Frontend** | Vanilla HTML / CSS / JavaScript (no framework) |
 | **Testing** | Jest + Supertest |
 | **Font** | Outfit (Google Fonts) |
@@ -63,14 +60,14 @@ daicotestlab2/
 │   ├── config/
 │   │   └── db.js                 # sql.js DB initialization + migrations
 │   ├── middleware/
-│   │   └── authMiddleware.js     # JWT verification (cookie + Bearer fallback)
+│   │   └── authMiddleware.js     # JWT verification (Bearer token)
 │   ├── models/
-│   │   ├── User.js               # User CRUD + account lockout helpers
+│   │   ├── User.js               # User CRUD
 │   │   └── Task.js               # Task CRUD (owner-scoped)
 │   ├── routes/
-│   │   ├── auth.js               # POST /register, /login, /logout
+│   │   ├── auth.js               # POST /register, /login
 │   │   └── tasks.js              # GET/POST/PUT/DELETE /api/tasks
-│   ├── app.js                    # Express app (helmet, CORS, routes)
+│   ├── app.js                    # Express app (CORS, routes)
 │   ├── server.js                 # HTTP server entry point
 │   ├── tasks.test.js             # Jest + Supertest TDD suite
 │   ├── .env                      # Local secrets (gitignored)
@@ -79,10 +76,9 @@ daicotestlab2/
 ├── frontend/
 │   ├── index.html                # SPA shell (auth + dashboard screens)
 │   ├── style.css                 # Dark-mode design system
-│   └── app.js                    # Auth flow, task CRUD, cookie-based session
+│   └── app.js                    # Auth flow, task CRUD, localStorage-based session
 ├── AGENTS.md                     # AI agent security & architecture rules
 ├── CHANGELOG.md                  # Version history
-├── SECURITY.md                   # Vulnerability disclosure history
 ├── PRD.md                        # Product Requirements Document
 └── README.md                     # This file
 ```
@@ -147,7 +143,6 @@ Copy `backend/.env.example` to `backend/.env` and fill in:
 | `PORT` | `3000` | Port the server listens on |
 | `JWT_SECRET` | *(required)* | Long random string for JWT signing — **change this!** |
 | `NODE_ENV` | `development` | Set to `production` for production deployments |
-| `ALLOWED_ORIGIN` | `http://localhost:3000` | CORS allowed origin |
 
 > ⚠️ Never commit your `.env` file. It is already in `.gitignore`.
 
@@ -155,15 +150,14 @@ Copy `backend/.env.example` to `backend/.env` and fill in:
 
 ## API Reference
 
-All task endpoints require authentication (cookie set on login, or `Authorization: Bearer <token>` header for testing).
+All task endpoints require authentication via an `Authorization: Bearer <token>` header.
 
 ### Auth
 
 | Method | Endpoint | Body | Description |
 |---|---|---|---|
-| `POST` | `/api/auth/register` | `{ username, email, password }` | Create account, sets auth cookie |
-| `POST` | `/api/auth/login` | `{ email, password }` | Log in, sets auth cookie |
-| `POST` | `/api/auth/logout` | — | Clears auth cookie |
+| `POST` | `/api/auth/register` | `{ username, email, password }` | Create account, returns a JWT |
+| `POST` | `/api/auth/login` | `{ email, password }` | Log in, returns a JWT |
 
 ### Tasks
 
@@ -183,7 +177,6 @@ All task endpoints require authentication (cookie set on login, or `Authorizatio
 | `400` | Validation error |
 | `401` | Unauthorized (no/invalid token) |
 | `404` | Resource not found |
-| `429` | Too many requests / account locked |
 | `500` | Internal server error |
 
 ---
@@ -213,22 +206,23 @@ Tests use an **in-memory database** (isolated per run, never touches `todo.db`).
 
 ## Security
 
-See [SECURITY.md](./SECURITY.md) for the full vulnerability disclosure history.
-
 ### Summary of controls
 
 | Control | Implementation |
 |---|---|
 | SQL Injection | Parameterized queries (`stmt.bind()`) on all DB calls |
 | XSS (DOM) | All user content rendered via `.textContent` — never `innerHTML` |
-| XSS (Token theft) | JWT in `httpOnly` cookie — JavaScript cannot read it |
-| CSRF | `SameSite=Strict` cookie + Bearer token auth |
-| Security Headers | `helmet` — CSP, HSTS, X-Frame-Options, X-Content-Type-Options, etc. |
-| Brute-force | Rate limiting (10 req/15min) + per-account lockout (5 attempts → 15min) |
 | Password storage | `bcryptjs` with 12 rounds |
 | Secrets | All via `.env` — never hardcoded, never committed |
 | Data isolation | All task queries scoped by `user_id` — no IDOR vulnerabilities |
 | Error responses | Generic messages to client — no stack traces or schema info exposed |
+
+### Known limitations (not yet implemented)
+
+- **Token storage**: the JWT is returned in the JSON response and stored in `localStorage` on the client, not in an `httpOnly` cookie — this means it is readable by JavaScript and vulnerable to theft via XSS if a script-injection bug were ever introduced.
+- **No rate limiting**: there is no request throttling on `/api/auth/*`, so brute-force login attempts are not mitigated.
+- **No account lockout**: repeated failed login attempts do not lock an account.
+- **No security headers middleware**: `helmet` (or equivalent) is not installed, so headers like CSP, HSTS, and X-Frame-Options are not set.
 
 ---
 
@@ -286,47 +280,12 @@ function createUser(username, email, passwordHash) {
 
 ---
 
-### BUG-002 — Sign In / Sign Up buttons were unclickable
-
-| Field | Detail |
-|---|---|
-| **Severity** | High (UI broken) |
-| **Affected version** | v1.1.0 |
-| **Fixed in** | v1.1.1 |
-| **Affected files** | `frontend/index.html`, `frontend/app.js`, `backend/app.js` |
-
-**Symptom:** After the security hardening patch (v1.1.0), the tab switcher buttons ("Log In" / "Sign Up") and the "Log Out" button stopped responding to clicks.
-
-**Root Cause:** The security patch added `helmet` with a Content Security Policy (CSP) that included:
-```js
-scriptSrc: ["'self'"]
-```
-
-This correctly restricts scripts to same-origin files, but it also **blocks inline event handlers** such as:
-```html
-<button onclick="switchTab('login')">Log In</button>
-```
-
-Inline `onclick` attributes are treated as inline scripts by the browser's CSP enforcer. Without `'unsafe-inline'` in `scriptSrc`, these handlers were silently blocked, making the buttons appear clickable but do nothing.
-
-**Fix:**
-1. Removed all `onclick="..."` attributes from `index.html`
-2. Wired the same functionality via `addEventListener` in `app.js` (inside the `init()` function):
-```js
-document.getElementById('tab-login').addEventListener('click', () => switchTab('login'));
-document.getElementById('tab-register').addEventListener('click', () => switchTab('register'));
-document.getElementById('logout-btn').addEventListener('click', () => logout());
-```
-3. Updated the CSP to add `crossOriginEmbedderPolicy: false` to allow Google Fonts to load without COEP conflicts.
-
----
-
-### BUG-003 — Stale `todo.db` caused false "email already exists" errors
+### BUG-002 — Stale `todo.db` caused false "email already exists" errors
 
 | Field | Detail |
 |---|---|
 | **Severity** | Medium (UX) |
-| **Affected version** | v1.0.0 – v1.1.0 |
+| **Affected version** | v1.0.0 |
 | **Fixed in** | v1.1.1 (operational fix) |
 | **Affected file** | `backend/config/db.js` |
 
@@ -341,7 +300,7 @@ document.getElementById('logout-btn').addEventListener('click', () => logout());
 
 ---
 
-### BUG-004 — Native module compilation failures on Windows (historical)
+### BUG-003 — Native module compilation failures on Windows (historical)
 
 | Field | Detail |
 |---|---|
@@ -366,8 +325,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for full version history.
 
 | Version | Date | Summary |
 |---|---|---|
-| `v1.1.1` | 2026-07-15 | Fix registration crash (BUG-001), fix unclickable buttons (BUG-002) |
-| `v1.1.0` | 2026-07-15 | Security hardening: helmet, rate limiting, account lockout, httpOnly cookies, CORS restriction |
+| `v1.1.1` | 2026-07-15 | Fix registration crash (BUG-001) |
 | `v1.0.0` | 2026-07-15 | Initial release: full-stack app, auth, task CRUD, dark-mode UI, TDD suite |
 
 ---
