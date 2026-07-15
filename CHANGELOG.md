@@ -28,10 +28,6 @@ Format: `[version] — date — description`
 - `frontend/index.html` — Single-page app with Auth and Dashboard screens
 - `frontend/style.css` — Dark-mode UI, electric purple + cyan palette, glassmorphism, micro-animations
 - `frontend/app.js` — Auth flow, JWT session management, full task CRUD with inline editing
-
-### CLI
-- `cli.js` — Terminal interface: `register`, `login`, `logout`, `list`, `add`, `done`, `undone`, `delete`
-
 ### Tests (TDD)
 - `backend/tasks.test.js` — Jest + Supertest suite covering:
   - ✅ `POST /api/tasks` with valid JWT → 201
