@@ -72,8 +72,7 @@ daicotestlab2/
 │   │   └── tasks.js              # GET/POST/PUT/DELETE /api/tasks
 │   ├── app.js                    # Express app (helmet, CORS, cookies, routes)
 │   ├── server.js                 # HTTP server entry point
-│   ├── tasks.test.js             # Jest + Supertest TDD suite
-│   ├── TDD.test.js               # Jest + Supertest TDD suite (duplicate coverage)
+│   ├── TDD.test.js               # Jest + Supertest TDD suite
 │   ├── .env                      # Local secrets (gitignored)
 │   ├── .env.example              # Safe env template
 │   └── package.json
@@ -200,10 +199,13 @@ npm test
 Expected output:
 ```
 PASS ./TDD.test.js
-PASS ./tasks.test.js
+  Task API - Core Functionality Tests
+    POST /api/tasks
+      ✓ should create a new task successfully when authenticated
+      ✓ should return 401 Unauthorized if no authentication token is provided
+      ✓ should return 400 Bad Request if the task title is missing
 
-Test Suites: 2 passed, 2 total
-Tests:       6 passed, 6 total
+Tests: 3 passed, 3 total
 ```
 
 Tests use an **in-memory database** (isolated per run, never touches `todo.db`).

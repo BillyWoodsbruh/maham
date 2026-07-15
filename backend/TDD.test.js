@@ -6,8 +6,8 @@
  * This is the working replacement for the old root-level `TDDtest.js`, which
  * was an orphaned draft that could never actually run (missing dependencies,
  * a wrong `require('./app')` path, and an undefined `getValidAuthToken`
- * helper). This file mirrors `tasks.test.js`, placed here in `backend/` where
- * the real Express app and test dependencies (`supertest`, `jest`) live.
+ * helper). Placed here in `backend/` where the real Express app and test
+ * dependencies (`supertest`, `jest`) live.
  */
 
 process.env.NODE_ENV = 'test';
