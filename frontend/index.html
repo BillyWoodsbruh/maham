@@ -55,8 +55,8 @@
           <input id="reg-email" type="email" placeholder="you@example.com" autocomplete="email" required />
         </div>
         <div class="form-group">
-          <label for="reg-password">Password <span class="hint">(min 6 chars)</span></label>
-          <input id="reg-password" type="password" placeholder="••••••••" autocomplete="new-password" required />
+          <label for="reg-password">Password <span class="hint">(min 8 chars, at least 1 number)</span></label>
+          <input id="reg-password" type="password" placeholder="••••••••" autocomplete="new-password" minlength="8" required />
         </div>
         <div id="register-error" class="form-error hidden" role="alert"></div>
         <button id="register-submit" type="submit" class="btn-primary">
